@@ -5,7 +5,7 @@ import json
 import uuid
 from typing import (
     TYPE_CHECKING,
-    Any,
+    Tuple,
     Optional,
     Iterable,
     List,
@@ -75,7 +75,7 @@ class Vantage(VectorStore):
         account_id: Optional[str] = None,
         vantage_api_key: Optional[str] = None,
     ) -> vantage.VantageClient:
-
+        # TODO: docstring + update auth
         try:
             import vantage
         except ImportError:
@@ -104,6 +104,7 @@ class Vantage(VectorStore):
         llm: Optional[str] = None,
         external_key_id: Optional[str] = None,
     ) -> vantage.Collection:
+        # TODO: docstring
         try:
             collection = client.get_collection(collection_id=collection_id)
         except:
@@ -126,17 +127,7 @@ class Vantage(VectorStore):
         ids: Optional[List[str]] = None,
         embeddings: Optional[List[List[float]]] = None,
     ) -> List[str]:
-        """Run more texts through the embeddings and add to the vectorstore.
-
-        Args:
-            texts: Iterable of strings to add to the vectorstore.
-            metadatas: Optional list of metadatas associated with the texts.
-            ids: Optional list of ids associated with the texts. If not provided, uuids will be generated.
-            embeddings: Optional list of embedding vectors associated with the texts. If not provided, embeddings will be created using self.embeddings function.
-
-        Returns:
-            List of ids from adding the texts into the vectorstore.
-        """
+        # TODO: docstring
 
         vantage_documents = []
         vantage_metadata_dicts = [
@@ -166,11 +157,28 @@ class Vantage(VectorStore):
         vantage_documents_jsonl = "\n".join(map(json.dumps, vantage_documents))
 
         self._client.upload_documents_from_jsonl(
-            collection_id=self._collection.collection_id,
+            collection_id=str(self._collection.id),
             documents=vantage_documents_jsonl,
         )
 
         return ids
+
+    def add_documents(
+        self,
+        documents: List[Document],
+        ids: Optional[List[str]] = None,
+        embeddings: Optional[List[List[float]]] = None,
+    ) -> List[str]:
+        # TODO: docstring
+
+        texts = [doc.page_content for doc in documents]
+        metadatas = [doc.metadata for doc in documents]
+        return self.add_texts(
+            texts,
+            metadatas,
+            ids,
+            embeddings,
+        )
 
     def similarity_search(
         self,
@@ -180,22 +188,11 @@ class Vantage(VectorStore):
         filter: Optional[str] = None,
         vantage_api_key: Optional[str] = None,
     ) -> List[Document]:
-        """Return docs most similar to query.
-
-        Args:
-            query: Query string to look up documents similar to.
-            k: Number of Documents to return. Defaults to 4.
-            accuracy: TODO
-            filter: TODO
-            vantage_api_key: TODO
-
-        Returns:
-            List of Documents most similar to the query string.
-        """
+        # TODO: docstring + use k param
 
         search_response = self._client.semantic_search(
             text=query,
-            collection_id=self._collection.collection_id,
+            collection_id=self._collection.id,
             accuracy=accuracy,
             boolean_filter=filter,
             vantage_api_key=vantage_api_key,
@@ -212,10 +209,11 @@ class Vantage(VectorStore):
         filter: Optional[str] = None,
         vantage_api_key: Optional[str] = None,
     ) -> List[Tuple[Document, float]]:
-        """Run similarity search with distance."""
+        # TODO: docstring + use k param
+
         search_response = self._client.semantic_search(
             text=query,
-            collection_id=self._collection.collection_id,
+            collection_id=self._collection.id,
             accuracy=accuracy,
             boolean_filter=filter,
             vantage_api_key=vantage_api_key,
@@ -235,21 +233,11 @@ class Vantage(VectorStore):
         filter: Optional[str] = None,
         vantage_api_key: Optional[str] = None,
     ) -> List[Document]:
-        """Return docs most similar to embedding vector.
+        # TODO: docstring + use k param
 
-        Args:
-            embedding: Embedding to look up documents similar to.
-            k: Number of Documents to return. Defaults to 4.
-            accuracy: TODO
-            filter: TODO
-            vantage_api_key: TODO
-
-        Returns:
-            List of Documents most similar to the embedding vector.
-        """
         search_response = self._client.embedding_search(
             embedding=embedding,
-            collection_id=self._collection.collection_id,
+            collection_id=self._collection.id,
             accuracy=accuracy,
             boolean_filter=filter,
             vantage_api_key=vantage_api_key,
@@ -266,10 +254,11 @@ class Vantage(VectorStore):
         filter: Optional[str] = None,
         vantage_api_key: Optional[str] = None,
     ) -> List[Tuple[Document, float]]:
-        """Run similarity search with distance."""
+        # TODO: docstring + use k param
+
         search_response = self._client.embedding_search(
             embedding=embedding,
-            collection_id=self._collection.collection_id,
+            collection_id=self._collection.id,
             accuracy=accuracy,
             boolean_filter=filter,
             vantage_api_key=vantage_api_key,
@@ -310,6 +299,7 @@ class Vantage(VectorStore):
         Returns:
             List of Documents selected by maximal marginal relevance.
         """
+
         query_embedding = self._embed_query(query)
         return self.max_marginal_relevance_search_by_vector(
             embedding=query_embedding,
@@ -353,7 +343,7 @@ class Vantage(VectorStore):
         """
         search_response = self._client.embedding_search(
             embedding=embedding,
-            collection_id=self._collection.collection_id,
+            collection_id=self._collection.id,
             accuracy=accuracy,
             boolean_filter=filter,
             vantage_api_key=vantage_api_key,
@@ -362,23 +352,23 @@ class Vantage(VectorStore):
         mmr_selected_ids = maximal_marginal_relevance(
             np.array([embedding], dtype=np.float32),
             [item["values"] for item in search_response["matches"]],
-            k=k,
+            k=fetch_k,
             lambda_mult=lambda_mult,
         )
 
         selected = [search_response.results[i] for i in mmr_selected_ids]
 
-        # TODO: Change result.id to text field
+        # TODO: Change result.id to text field + use k param
         return [Document(page_content=result.id) for result in selected]
 
     def _embed_query(self, query: str) -> List[float]:
-        """Embed search texts.
+        """Embed search query.
 
         Args:
-            texts: Iterable of texts to embed.
+            query: Query string to embed.
 
         Returns:
-            List of floats representing the texts embedding.
+            List of floats representing the query embedding.
         """
         if self.embeddings is None:
             raise ValueError("Embeddings function is not set")
@@ -396,7 +386,7 @@ class Vantage(VectorStore):
             texts: Iterable of texts to embed.
 
         Returns:
-            List of floats representing the texts embedding.
+            Nested list of floats representing the texts embeddings.
         """
         if self.embeddings is None:
             raise ValueError("Embeddings function is not set")
@@ -413,6 +403,7 @@ class Vantage(VectorStore):
         texts: List[str],
         embedding: Embeddings,
         metadatas: Optional[List[dict]] = None,
+        ids: Optional[List[str]] = None,
         client: Optional[vantage.VantageClient] = None,
         collection: Optional[vantage.Collection] = None,
         collection_id: Optional[str] = None,
@@ -422,9 +413,7 @@ class Vantage(VectorStore):
         llm: Optional[str] = None,
         external_key_id: Optional[str] = None,
     ) -> Vantage:
-        """
-        Construct Vantage vector store wrapper from raw text.
-        """
+        """Return Vantage VectorStore initialized from raw text."""
 
         client = client or cls._get_vantage_client()
 
@@ -449,6 +438,42 @@ class Vantage(VectorStore):
         vantage_vector_store.add_texts(
             texts=texts,
             metadatas=metadatas,
+            ids=ids,
         )
 
         return vantage_vector_store
+
+    @classmethod
+    def from_documents(
+        cls,
+        documents: List[Document],
+        embedding: Embeddings,
+        ids: Optional[List[str]] = None,
+        client: Optional[vantage.VantageClient] = None,
+        collection: Optional[vantage.Collection] = None,
+        collection_id: Optional[str] = None,
+        collection_name: Optional[str] = None,
+        embedding_dimension: Optional[int] = None,
+        user_provided_embeddings: Optional[bool] = False,
+        llm: Optional[str] = None,
+        external_key_id: Optional[str] = None,
+    ) -> Vantage:
+        """Return Vantage VectorStore initialized from documents."""
+
+        texts = [d.page_content for d in documents]
+        metadatas = [d.metadata for d in documents]
+
+        return cls.from_texts(
+            texts,
+            embedding,
+            metadatas=metadatas,
+            ids=ids,
+            client=client,
+            collection=collection,
+            collection_id=collection_id,
+            collection_name=collection_name,
+            embedding_dimension=embedding_dimension,
+            user_provided_embeddings=user_provided_embeddings,
+            llm=llm,
+            external_key_id=external_key_id,
+        )
